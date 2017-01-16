@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TwitterStream", "TwitterStream\TwitterStream.csproj", "{C7D429DD-D3A8-411E-B95F-6DE3FABD3BB7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FacebookStream", "FacebookStream\FacebookStream.csproj", "{08096C17-1F0A-4594-BA78-430D1BF7DE38}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C7D429DD-D3A8-411E-B95F-6DE3FABD3BB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7D429DD-D3A8-411E-B95F-6DE3FABD3BB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7D429DD-D3A8-411E-B95F-6DE3FABD3BB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7D429DD-D3A8-411E-B95F-6DE3FABD3BB7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08096C17-1F0A-4594-BA78-430D1BF7DE38}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08096C17-1F0A-4594-BA78-430D1BF7DE38}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08096C17-1F0A-4594-BA78-430D1BF7DE38}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08096C17-1F0A-4594-BA78-430D1BF7DE38}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
