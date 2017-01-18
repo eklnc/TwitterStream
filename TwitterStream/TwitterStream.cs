@@ -13,197 +13,121 @@ namespace TwitterStream
 {
     public class TwitterStream : OAuthBase
     {
-        private readonly string _accessToken = ConfigurationManager.AppSettings["access_token"];
-        private readonly string _accessTokenSecret = ConfigurationManager.AppSettings["access_token_secret"];
-        private readonly string _consumerKey = ConfigurationManager.AppSettings["consumer_key"];
-        private readonly string _consumerSecret = ConfigurationManager.AppSettings["consumer_secret"];
-
-        public void StartTweetInvi()
+        private string StreamUrl
         {
-            //FilteredStream stream = new FilteredStream();
-            //// Create a Token to access Twitter
-            //IToken token = new Token("userKey", "userSecret", "consumerKey", "consumerSecret");
-            //// Adding Tracks filters
-            //stream.AddTrack("HelloMartha");
-            //stream.AddTrack("TrackNumber2!");
-            //// Write the Text of each Tweet in the Console
-            //stream.StartStream(token, x => Console.WriteLine(x.Text));
+            get { return ConfigurationManager.AppSettings["stream_url"]; }
+        }
+
+        private string AccessToken
+        {
+            get { return ConfigurationManager.AppSettings["access_token"]; }
+        }
+
+        private string AccessTokenSecret
+        {
+            get { return ConfigurationManager.AppSettings["access_token_secret"]; }
+        }
+
+        private string ConsumerKey
+        {
+            get { return ConfigurationManager.AppSettings["consumer_key"]; }
+        }
+
+        private string ConsumerSecret
+        {
+            get { return ConfigurationManager.AppSettings["consumer_secret"]; }
         }
 
         public void Start()
         {
-            //Twitter Streaming API
-            string streamUrl = ConfigurationManager.AppSettings["stream_url"];
-
             HttpWebRequest webRequest = null;
             HttpWebResponse webResponse = null;
             StreamReader responseStream = null;
-            string postparameters = (ConfigurationManager.AppSettings["track_keywords"].Length == 0 ? string.Empty : "&track=" + ConfigurationManager.AppSettings["track_keywords"]) +
-                                    (ConfigurationManager.AppSettings["language"].Length == 0 ? string.Empty : "&language=" + ConfigurationManager.AppSettings["language"]);
 
-            if (!string.IsNullOrEmpty(postparameters))
-            {
-                if (postparameters.IndexOf('&') == 0)
-                    postparameters = postparameters.Remove(0, 1).Replace("#", "%23");
-            }
+            string postparameters = GetPostParameters();
 
             int wait = 250;
 
-            try
+            while (true)
             {
-                while (true)
+                try
                 {
-                    try
+                    responseStream = GetStream(StreamUrl, postparameters);
+
+                    //Read the stream.
+                    while (true)
                     {
-                        //Connect
-                        webRequest = (HttpWebRequest)WebRequest.Create(streamUrl);
-                        webRequest.Timeout = -1;
-                        webRequest.Headers.Add("Authorization", GetAuthHeader(streamUrl + "?" + postparameters));
-
-                        Encoding encode = Encoding.GetEncoding("utf-8");
-                        if (postparameters.Length > 0)
+                        try
                         {
-                            webRequest.Method = "POST";
-                            webRequest.ContentType = "application/x-www-form-urlencoded";
-
-                            byte[] twitterTrack = encode.GetBytes(postparameters);
-
-                            webRequest.ContentLength = twitterTrack.Length;
-                            Stream twitterPost = webRequest.GetRequestStream();
-                            twitterPost.Write(twitterTrack, 0, twitterTrack.Length);
-                            twitterPost.Close();
-                        }
-
-                        webResponse = (HttpWebResponse)webRequest.GetResponse();
-                        Stream stream = webResponse.GetResponseStream();
-                        responseStream = new StreamReader(stream, encode);
-
-                        //Read the stream.
-                        while (true)
-                        {
-                            try
+                            var jsonText = responseStream.ReadLine();
+                            if (jsonText == string.Empty)
                             {
-                                var jsonText = responseStream.ReadLine();
-                                if (jsonText == string.Empty)
-                                {
-                                    continue;
-                                }
-
-                                //Success
-                                wait = 250;
-
-                                TweetStreamObject tweetStreamObject = JsonConvert.DeserializeObject<TweetStreamObject>(jsonText);
-
-                                if (tweetStreamObject == null)
-                                {
-                                    continue;
-                                }
-
-                                string tweetBody = tweetStreamObject.text;
-                                bool isRetweeted = tweetStreamObject.retweeted;
-                                string source = tweetStreamObject.source;
-
-                                if (tweetBody.StartsWith("RT") || isRetweeted)
-                                {
-                                    continue;
-                                }
-
-                                if (tweetBody.Contains("I'm at") || source.Contains("foursquare"))
-                                {
-                                    continue;
-                                }
-
-                                string createdTime = ConvertToDateTime(tweetStreamObject.created_at);
-                                float[] coordinateObject = tweetStreamObject.coordinates?.coordinates;
-                                string name = tweetStreamObject.user.name;
-                                string username = tweetStreamObject.user.screen_name;
-                                string place = tweetStreamObject.place?.full_name;
-
-                                var tweetObject = new TweetModel
-                                {
-                                    Tweet = tweetBody,
-                                    Coordinates = coordinateObject == null ? string.Empty 
-                                                                            : "(" + coordinateObject[0].ToString(CultureInfo.InvariantCulture).Replace(",", ".") + "," + 
-                                                                                    coordinateObject[1].ToString(CultureInfo.InvariantCulture).Replace(",", ".") + ")",
-                                    CreateTime = createdTime,
-                                    FullName = name,
-                                    UserName = username,
-                                    Place = place
-                                };
-
-                                //Write Status
-                                Console.Write("KÝMDEN: " + tweetObject.FullName + " - " + "@" + tweetObject.UserName + "\n" +
-                                              "TWEET: " + tweetObject.Tweet + "\n" +
-                                              "NE ZAMAN ATILDI?: " + tweetObject.CreateTime + "\n" +
-                                              "NEREDEN ATILDI?: " + tweetObject.Place + "\n" +
-                                              "KOORDÝNASYON:" + tweetObject.Coordinates + "\n" +
-                                              "--------------------------------" +
-                                              "\n\n");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.Write("\n\n" + "HATA:" + ex.Message + "\n\n");
+                                continue;
                             }
 
-                        }
-                    }
-                    catch (WebException ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                        if (ex.Status == WebExceptionStatus.ProtocolError)
-                        {
-                            //-- From Twitter Docs -- 
-                            //When a HTTP error (> 200) is returned, back off exponentially. 
-                            //Perhaps start with a 10 second wait, double on each subsequent failure, 
-                            //and finally cap the wait at 240 seconds. 
-                            //Exponential Backoff
-                            if (wait < 10000)
-                                wait = 10000;
-                            else
+                            TweetModel tweetObject = GetTweetObject(jsonText);
+
+                            if (tweetObject == null)
                             {
-                                if (wait < 240000)
-                                    wait = wait * 2;
+                                continue;
                             }
+
+                            //Write Status
+                            Console.Write("KÝMDEN: " + tweetObject.FullName + " - " + "@" + tweetObject.UserName + "\n" +
+                                          "TWEET: " + tweetObject.Tweet + "\n" +
+                                          "NE ZAMAN ATILDI?: " + tweetObject.CreateTime + "\n" +
+                                          "NEREDEN ATILDI?: " + tweetObject.Place + "\n" +
+                                          "KOORDÝNASYON:" + tweetObject.Coordinates + "\n" +
+                                          "--------------------------------" +
+                                          "\n\n");
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            //-- From Twitter Docs -- 
-                            //When a network error (TCP/IP level) is encountered, back off linearly. 
-                            //Perhaps start at 250 milliseconds and cap at 16 seconds.
-                            //Linear Backoff
-                            if (wait < 16000)
-                                wait += 250;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                    }
-                    finally
-                    {
-                        if (webRequest != null)
-                            webRequest.Abort();
-                        if (responseStream != null)
-                        {
-                            responseStream.Close();
-                            responseStream = null;
+                            Console.Write("\n\n" + "HATA:" + ex.Message + "\n\n");
                         }
 
-                        if (webResponse != null)
-                        {
-                            webResponse.Close();
-                            webResponse = null;
-                        }
-                        Console.WriteLine("Waiting: " + wait);
-                        Thread.Sleep(wait);
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                Console.WriteLine("Waiting: " + wait);
-                Thread.Sleep(wait);
+                catch (WebException ex)
+                {
+                    Console.Write("\n\n" + "HATA:" + ex.Message + "\n\n");
+
+                    if (ex.Status == WebExceptionStatus.ProtocolError)
+                    {
+                        //-- From Twitter Docs -- 
+                        //When a HTTP error (> 200) is returned, back off exponentially. 
+                        //Perhaps start with a 10 second wait, double on each subsequent failure, 
+                        //and finally cap the wait at 240 seconds. 
+                        //Exponential Backoff
+                        if (wait < 10000)
+                            wait = 10000;
+                        else
+                        {
+                            if (wait < 240000)
+                                wait = wait * 2;
+                        }
+                    }
+                    else
+                    {
+                        //-- From Twitter Docs -- 
+                        //When a network error (TCP/IP level) is encountered, back off linearly. 
+                        //Perhaps start at 250 milliseconds and cap at 16 seconds.
+                        //Linear Backoff
+                        if (wait < 16000)
+                            wait += 250;
+                    }
+                }
+                finally
+                {
+                    if (responseStream != null)
+                    {
+                        responseStream.Close();
+                        responseStream = null;
+                    }
+
+                    Console.WriteLine("Waiting: " + wait);
+                    Thread.Sleep(wait);
+                }
             }
         }
 
@@ -256,7 +180,7 @@ namespace TwitterStream
             string nonce = GenerateNonce();
 
 
-            string oauthSignature = GenerateSignature(new Uri(url), _consumerKey, _consumerSecret, _accessToken, _accessTokenSecret, "POST", timeStamp, nonce, out normalizeUrl, out normalizedString);
+            string oauthSignature = GenerateSignature(new Uri(url), ConsumerKey, ConsumerSecret, AccessToken, AccessTokenSecret, "POST", timeStamp, nonce, out normalizeUrl, out normalizedString);
 
 
             // create the request header
@@ -269,10 +193,104 @@ namespace TwitterStream
                 Uri.EscapeDataString(nonce),
                 Uri.EscapeDataString(Hmacsha1SignatureType),
                 Uri.EscapeDataString(timeStamp),
-                Uri.EscapeDataString(_consumerKey),
-                Uri.EscapeDataString(_accessToken),
+                Uri.EscapeDataString(ConsumerKey),
+                Uri.EscapeDataString(AccessToken),
                 Uri.EscapeDataString(oauthSignature),
                 Uri.EscapeDataString(OAuthVersion));
+        }
+
+        private StreamReader GetStream(string streamUrl, string postparameters)
+        {
+            HttpWebRequest webRequest = null;
+            HttpWebResponse webResponse = null;
+            StreamReader responseStream = null;
+
+            webRequest = (HttpWebRequest)WebRequest.Create(streamUrl);
+            webRequest.Timeout = -1;
+            var authorizationString = GetAuthHeader(streamUrl + "?" + postparameters);
+            webRequest.Headers.Add("Authorization", authorizationString);
+
+            Encoding encode = Encoding.GetEncoding("utf-8");
+            if (postparameters.Length > 0)
+            {
+                webRequest.Method = "POST";
+                webRequest.ContentType = "application/x-www-form-urlencoded";
+
+                byte[] twitterTrack = encode.GetBytes(postparameters);
+
+                webRequest.ContentLength = twitterTrack.Length;
+                Stream twitterPost = webRequest.GetRequestStream();
+                twitterPost.Write(twitterTrack, 0, twitterTrack.Length);
+                twitterPost.Close();
+            }
+
+            webResponse = (HttpWebResponse)webRequest.GetResponse();
+            Stream stream = webResponse.GetResponseStream();
+            responseStream = new StreamReader(stream, encode);
+
+            return responseStream;
+        }
+
+        private string GetPostParameters()
+        {
+            string postparameters = (ConfigurationManager.AppSettings["track_keywords"].Length == 0 ? string.Empty : "&track=" + ConfigurationManager.AppSettings["track_keywords"]) +
+                                  (ConfigurationManager.AppSettings["language"].Length == 0 ? string.Empty : "&language=" + ConfigurationManager.AppSettings["language"]);
+
+            if (!string.IsNullOrEmpty(postparameters))
+            {
+                if (postparameters.IndexOf('&') == 0)
+                {
+                    postparameters = postparameters.Remove(0, 1).Replace("#", "%23");
+                }
+
+                postparameters = postparameters.Replace(",", "%2C");
+            }
+
+            return postparameters;
+        }
+
+        private TweetModel GetTweetObject(string jsonText)
+        {
+            TweetStreamObject tweetStreamObject = JsonConvert.DeserializeObject<TweetStreamObject>(jsonText);
+
+            if (tweetStreamObject == null)
+            {
+                return null;
+            }
+
+            string tweetBody = tweetStreamObject.text;
+            bool isRetweeted = tweetStreamObject.retweeted;
+            string source = tweetStreamObject.source;
+
+            if (tweetBody.StartsWith("RT") || isRetweeted)
+            {
+                return null;
+            }
+
+            if (tweetBody.Contains("I'm at") || source.Contains("foursquare"))
+            {
+                return null;
+            }
+
+            string createdTime = ConvertToDateTime(tweetStreamObject.created_at);
+            float[] coordinateObject = tweetStreamObject.coordinates?.coordinates;
+            string name = tweetStreamObject.user.name;
+            string username = tweetStreamObject.user.screen_name;
+            string place = tweetStreamObject.place?.full_name;
+
+            var tweetObject = new TweetModel
+            {
+                Tweet = tweetBody,
+                Coordinates = coordinateObject == null ? string.Empty
+                                                        : "(" + coordinateObject[0].ToString(CultureInfo.InvariantCulture).Replace(",", ".") + "," +
+                                                                coordinateObject[1].ToString(CultureInfo.InvariantCulture).Replace(",", ".") + ")",
+                CreateTime = createdTime,
+                FullName = name,
+                UserName = username,
+                Place = place
+            };
+
+            return tweetObject;
         }
     }
 }
