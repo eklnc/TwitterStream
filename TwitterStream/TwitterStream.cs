@@ -38,7 +38,7 @@ namespace TwitterStream
             get { return ConfigurationManager.AppSettings["consumer_secret"]; }
         }
 
-        public void Start()
+        public TweetModel Start(bool containsRetweet, bool containsLocationNotification)
         {
             string postParameters = GetPostParameters();
 
@@ -68,21 +68,22 @@ namespace TwitterStream
                                 continue;
                             }
 
-                            TweetModel tweetObject = GetTweetObject(jsonText);
+                            TweetModel tweetObject = GetTweetObject(jsonText, containsRetweet, containsLocationNotification);
 
                             if (tweetObject == null)
                             {
                                 continue;
                             }
 
+                            return tweetObject;
                             //Write Status
-                            Console.Write("KÝMDEN: " + tweetObject.FullName + " - " + "@" + tweetObject.UserName + "\n" +
-                                          "TWEET: " + tweetObject.Tweet + "\n" +
-                                          "NE ZAMAN ATILDI?: " + tweetObject.CreateTime + "\n" +
-                                          "NEREDEN ATILDI?: " + tweetObject.Place + "\n" +
-                                          "KOORDÝNASYON:" + tweetObject.Coordinates + "\n" +
-                                          "--------------------------------" +
-                                          "\n\n");
+                            //Console.Write("KÝMDEN: " + tweetObject.FullName + " - " + "@" + tweetObject.UserName + "\n" +
+                            //              "TWEET: " + tweetObject.Tweet + "\n" +
+                            //              "NE ZAMAN ATILDI?: " + tweetObject.CreateTime + "\n" +
+                            //              "NEREDEN ATILDI?: " + tweetObject.Place + "\n" +
+                            //              "KOORDÝNASYON:" + tweetObject.Coordinates + "\n" +
+                            //              "--------------------------------" +
+                            //              "\n\n");
                         }
                         catch (Exception ex)
                         {
@@ -248,7 +249,7 @@ namespace TwitterStream
             return postparameters;
         }
 
-        private TweetModel GetTweetObject(string jsonText)
+        private TweetModel GetTweetObject(string jsonText, bool containsRetweet, bool containsLocationNotification)
         {
             var tweetStreamObject = JsonConvert.DeserializeObject<TweetStreamObject>(jsonText);
 
@@ -261,14 +262,20 @@ namespace TwitterStream
             bool isRetweeted = tweetStreamObject.retweeted;
             string source = tweetStreamObject.source;
 
-            if (tweetBody.StartsWith("RT") || isRetweeted)
+            if (!containsRetweet)
             {
-                return null;
+                if (tweetBody.StartsWith("RT") || isRetweeted)
+                {
+                    return null;
+                }
             }
 
-            if (tweetBody.Contains("I'm at") || source.Contains("foursquare"))
+            if (!containsLocationNotification)
             {
-                return null;
+                if (tweetBody.Contains("I'm at") || source.Contains("foursquare"))
+                {
+                    return null;
+                }
             }
 
             string createdTime = ConvertToDateTime(tweetStreamObject.created_at);

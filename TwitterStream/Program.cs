@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace TwitterStream
 {
@@ -10,8 +8,8 @@ namespace TwitterStream
         {
             try
             {
-                TwitterStream stream = new TwitterStream();
-                stream.Start();
+                //TwitterStream stream = new TwitterStream();
+                //stream.Start();
             }
             catch (Exception ex)
             {
