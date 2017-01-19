@@ -40,19 +40,22 @@ namespace TwitterStream
 
         public void Start()
         {
-            HttpWebRequest webRequest = null;
-            HttpWebResponse webResponse = null;
-            StreamReader responseStream = null;
-
-            string postparameters = GetPostParameters();
+            string postParameters = GetPostParameters();
 
             int wait = 250;
+
+            HttpWebRequest webRequest = GetRequest(postParameters);
 
             while (true)
             {
                 try
                 {
-                    responseStream = GetStream(StreamUrl, postparameters);
+                    StreamReader responseStream = GetStream(webRequest);
+
+                    if (responseStream == null)
+                    {
+                        continue;
+                    }
 
                     //Read the stream.
                     while (true)
@@ -94,11 +97,6 @@ namespace TwitterStream
 
                     if (ex.Status == WebExceptionStatus.ProtocolError)
                     {
-                        //-- From Twitter Docs -- 
-                        //When a HTTP error (> 200) is returned, back off exponentially. 
-                        //Perhaps start with a 10 second wait, double on each subsequent failure, 
-                        //and finally cap the wait at 240 seconds. 
-                        //Exponential Backoff
                         if (wait < 10000)
                             wait = 10000;
                         else
@@ -109,26 +107,42 @@ namespace TwitterStream
                     }
                     else
                     {
-                        //-- From Twitter Docs -- 
-                        //When a network error (TCP/IP level) is encountered, back off linearly. 
-                        //Perhaps start at 250 milliseconds and cap at 16 seconds.
-                        //Linear Backoff
                         if (wait < 16000)
                             wait += 250;
                     }
                 }
                 finally
                 {
-                    if (responseStream != null)
-                    {
-                        responseStream.Close();
-                        responseStream = null;
-                    }
-
                     Console.WriteLine("Waiting: " + wait);
                     Thread.Sleep(wait);
                 }
             }
+        }
+
+        private HttpWebRequest GetRequest(string postParameters)
+        {
+            var authorizationString = GetAuthHeader(StreamUrl + "?" + postParameters);
+
+            HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(StreamUrl);
+            webRequest.Timeout = -1;
+            webRequest.Headers.Add("Authorization", authorizationString);
+
+            var encode = Encoding.GetEncoding("utf-8");
+
+            if (postParameters.Length > 0)
+            {
+                webRequest.Method = "POST";
+                webRequest.ContentType = "application/x-www-form-urlencoded";
+
+                byte[] twitterTrack = encode.GetBytes(postParameters);
+
+                webRequest.ContentLength = twitterTrack.Length;
+                Stream twitterPost = webRequest.GetRequestStream();
+                twitterPost.Write(twitterTrack, 0, twitterTrack.Length);
+                twitterPost.Close();
+            }
+
+            return webRequest;
         }
 
         private static string ConvertToDateTime(string tweetDate)
@@ -199,34 +213,19 @@ namespace TwitterStream
                 Uri.EscapeDataString(OAuthVersion));
         }
 
-        private StreamReader GetStream(string streamUrl, string postparameters)
+        private StreamReader GetStream(HttpWebRequest webRequest)
         {
-            HttpWebRequest webRequest = null;
-            HttpWebResponse webResponse = null;
-            StreamReader responseStream = null;
-
-            webRequest = (HttpWebRequest)WebRequest.Create(streamUrl);
-            webRequest.Timeout = -1;
-            var authorizationString = GetAuthHeader(streamUrl + "?" + postparameters);
-            webRequest.Headers.Add("Authorization", authorizationString);
-
             Encoding encode = Encoding.GetEncoding("utf-8");
-            if (postparameters.Length > 0)
+
+            var webResponse = (HttpWebResponse)webRequest.GetResponse();
+            Stream stream = webResponse.GetResponseStream();
+
+            if (stream == null)
             {
-                webRequest.Method = "POST";
-                webRequest.ContentType = "application/x-www-form-urlencoded";
-
-                byte[] twitterTrack = encode.GetBytes(postparameters);
-
-                webRequest.ContentLength = twitterTrack.Length;
-                Stream twitterPost = webRequest.GetRequestStream();
-                twitterPost.Write(twitterTrack, 0, twitterTrack.Length);
-                twitterPost.Close();
+                return null;
             }
 
-            webResponse = (HttpWebResponse)webRequest.GetResponse();
-            Stream stream = webResponse.GetResponseStream();
-            responseStream = new StreamReader(stream, encode);
+            var responseStream = new StreamReader(stream, encode);
 
             return responseStream;
         }
@@ -234,7 +233,7 @@ namespace TwitterStream
         private string GetPostParameters()
         {
             string postparameters = (ConfigurationManager.AppSettings["track_keywords"].Length == 0 ? string.Empty : "&track=" + ConfigurationManager.AppSettings["track_keywords"]) +
-                                  (ConfigurationManager.AppSettings["language"].Length == 0 ? string.Empty : "&language=" + ConfigurationManager.AppSettings["language"]);
+                                    (ConfigurationManager.AppSettings["language"].Length == 0 ? string.Empty : "&language=" + ConfigurationManager.AppSettings["language"]);
 
             if (!string.IsNullOrEmpty(postparameters))
             {
@@ -251,7 +250,7 @@ namespace TwitterStream
 
         private TweetModel GetTweetObject(string jsonText)
         {
-            TweetStreamObject tweetStreamObject = JsonConvert.DeserializeObject<TweetStreamObject>(jsonText);
+            var tweetStreamObject = JsonConvert.DeserializeObject<TweetStreamObject>(jsonText);
 
             if (tweetStreamObject == null)
             {
