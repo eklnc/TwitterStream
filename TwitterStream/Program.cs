@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Net;
+using TwitterStream.Tables;
 
 namespace TwitterStream
 {
@@ -6,16 +8,21 @@ namespace TwitterStream
     {
         static void Main(string[] args)
         {
-            try
+            using (var context = new TwitterStreamContext())
             {
-                //TwitterStream stream = new TwitterStream();
-                //stream.Start();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+                TwitterStream stream = new TwitterStream(context);
 
+                try
+                {
+                    stream.Start();
+                }
+                catch (WebException ex)
+                {
+                    Console.WriteLine("***HATA ALINDI ***: " + ex.Message + "\n\n");
+
+                    stream.InsertError(ex);
+                }
+            }
         }
     }
 }

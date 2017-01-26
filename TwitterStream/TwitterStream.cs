@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Data.Entity;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -8,37 +9,105 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using Newtonsoft.Json;
+using TwitterStream.Tables;
 
 namespace TwitterStream
 {
     public class TwitterStream : OAuthBase
     {
+        private readonly TwitterStreamContext _twitterStreamContext;
+
+        public TwitterStream(TwitterStreamContext twitterStreamContext)
+        {
+            _twitterStreamContext = twitterStreamContext;
+        }
+
         private string StreamUrl
         {
-            get { return ConfigurationManager.AppSettings["stream_url"]; }
+            get
+            {
+
+                var consumerSecret = GetParameterValue("stream_url");
+                return consumerSecret;
+            }
         }
 
         private string AccessToken
         {
-            get { return ConfigurationManager.AppSettings["access_token"]; }
+            get
+            {
+
+                var consumerSecret = GetParameterValue("access_token");
+                return consumerSecret;
+            }
         }
 
         private string AccessTokenSecret
         {
-            get { return ConfigurationManager.AppSettings["access_token_secret"]; }
+            get
+            {
+
+                var consumerSecret = GetParameterValue("access_token_secret");
+                return consumerSecret;
+            }
         }
 
         private string ConsumerKey
         {
-            get { return ConfigurationManager.AppSettings["consumer_key"]; }
+            get
+            {
+                var consumerSecret = GetParameterValue("consumer_key");
+                return consumerSecret;
+            }
         }
 
         private string ConsumerSecret
         {
-            get { return ConfigurationManager.AppSettings["consumer_secret"]; }
+            get
+            {
+                var consumerSecret = GetParameterValue("consumer_secret");
+                return consumerSecret;
+            }
         }
 
-        public TweetModel Start(bool containsRetweet, bool containsLocationNotification)
+        private string Language
+        {
+            get
+            {
+                var language = GetParameterValue("language");
+                return language;
+            }
+        }
+
+        private string TrackKeywords
+        {
+            get
+            {
+                var categoryId = Convert.ToInt32(ConfigurationManager.AppSettings["categor_id"]);
+                var keywords = GetTrackKeywords(categoryId);
+                return keywords;
+            }
+        }
+
+        private bool ContainsRetweet
+        {
+            get
+            {
+                var containsRetweet = Convert.ToBoolean(ConfigurationManager.AppSettings["containsRetweet"]);
+                return containsRetweet;
+            }
+        }
+
+        private bool ContainsLocationNotification
+        {
+            get
+            {
+                var containsLocationNotification = Convert.ToBoolean(ConfigurationManager.AppSettings["containsLocationNotification"]);
+                return containsLocationNotification;
+            }
+        }
+
+        public void Start()
         {
             string postParameters = GetPostParameters();
 
@@ -51,7 +120,6 @@ namespace TwitterStream
                 try
                 {
                     StreamReader responseStream = GetStream(webRequest);
-
                     if (responseStream == null)
                     {
                         continue;
@@ -68,33 +136,38 @@ namespace TwitterStream
                                 continue;
                             }
 
-                            TweetModel tweetObject = GetTweetObject(jsonText, containsRetweet, containsLocationNotification);
+                            TweetModel tweetObject = GetTweetObject(jsonText, ContainsRetweet, ContainsLocationNotification);
 
                             if (tweetObject == null)
                             {
                                 continue;
                             }
 
-                            return tweetObject;
                             //Write Status
-                            //Console.Write("KÝMDEN: " + tweetObject.FullName + " - " + "@" + tweetObject.UserName + "\n" +
-                            //              "TWEET: " + tweetObject.Tweet + "\n" +
-                            //              "NE ZAMAN ATILDI?: " + tweetObject.CreateTime + "\n" +
-                            //              "NEREDEN ATILDI?: " + tweetObject.Place + "\n" +
-                            //              "KOORDÝNASYON:" + tweetObject.Coordinates + "\n" +
-                            //              "--------------------------------" +
-                            //              "\n\n");
+                            Console.Write("KÝMDEN: " + tweetObject.FullName + " - " + "@" + tweetObject.UserName + "\n" +
+                                          "TWEET: " + tweetObject.Tweet + "\n" +
+                                          "NE ZAMAN ATILDI?: " + tweetObject.CreateTime + "\n" +
+                                          "NEREDEN ATILDI?: " + tweetObject.Place + "\n" +
+                                          "KOORDÝNASYON:" + tweetObject.Coordinates + "\n" +
+                                          "--------------------------------" +
+                                          "\n\n");
+
+                            InsertTweet(tweetObject);
                         }
-                        catch (Exception ex)
+                        catch (WebException ex)
                         {
-                            Console.Write("\n\n" + "HATA:" + ex.Message + "\n\n");
+                            Console.Write("*** HATA ALINDI ***: " + ex.Message + "\n\n");
+
+                            InsertError(ex);
                         }
 
                     }
                 }
                 catch (WebException ex)
                 {
-                    Console.Write("\n\n" + "HATA:" + ex.Message + "\n\n");
+                    Console.Write("*** HATA ALINDI ***: " + ex.Message + "\n\n");
+
+                    InsertError(ex);
 
                     if (ex.Status == WebExceptionStatus.ProtocolError)
                     {
@@ -233,8 +306,7 @@ namespace TwitterStream
 
         private string GetPostParameters()
         {
-            string postparameters = (ConfigurationManager.AppSettings["track_keywords"].Length == 0 ? string.Empty : "&track=" + ConfigurationManager.AppSettings["track_keywords"]) +
-                                    (ConfigurationManager.AppSettings["language"].Length == 0 ? string.Empty : "&language=" + ConfigurationManager.AppSettings["language"]);
+            string postparameters = (TrackKeywords.Length == 0 ? string.Empty : "&track=" + TrackKeywords) + (Language.Length == 0 ? string.Empty : "&language=" + Language);
 
             if (!string.IsNullOrEmpty(postparameters))
             {
@@ -297,6 +369,64 @@ namespace TwitterStream
             };
 
             return tweetObject;
+        }
+
+        private string GetParameterValue(string parameterName)
+        {
+            string param = _twitterStreamContext.T_TS_PARAMETERS.SingleOrDefault(x => x.ParamaterName == parameterName)?.ParameterValue;
+
+            return param;
+        }
+
+        private string GetTrackKeywords(int categoryId)
+        {
+            string param = _twitterStreamContext.T_TS_CATEGORY.SingleOrDefault(x => x.Id == categoryId)?.CategoryTrackKeywords;
+
+            return param;
+        }
+
+        private void InsertTweet(TweetModel tweet)
+        {
+            var tweetEntity = ConvertModelToEntitiy(tweet, 1);
+
+            _twitterStreamContext.T_TS_TWEETS.Add(tweetEntity);
+
+            _twitterStreamContext.SaveChanges();
+        }
+
+        private T_TS_TWEETS ConvertModelToEntitiy(TweetModel tweetModel, int categoryId)
+        {
+            var tweetEntity = new T_TS_TWEETS
+            {
+                Coordinates = tweetModel.Coordinates,
+                CategoryId = categoryId,
+                CreateTime = tweetModel.CreateTime,
+                FullName = tweetModel.FullName,
+                Place = tweetModel.Place,
+                Tweet = tweetModel.Tweet,
+                UserName = tweetModel.UserName,
+                IsActive = true
+            };
+
+            return tweetEntity;
+        }
+
+        public void InsertError(WebException exception)
+        {
+            var exceptionentity = new T_TS_EXCEPTION
+            {
+                ExceptionData = exception.Data.ToString(),
+                ExceptionGuid = Guid.NewGuid().ToString(),
+                ExceptionMessage = exception.Message,
+                ExceptionSource = exception.Source,
+                ExceptionType = exception.GetType().AssemblyQualifiedName,
+                StackTrace = exception.StackTrace,
+                ExceptionStatus = exception.Status.ToString()
+            };
+
+            _twitterStreamContext.T_TS_EXCEPTION.Add(exceptionentity);
+
+            _twitterStreamContext.SaveChanges();
         }
     }
 }
