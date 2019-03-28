@@ -12,16 +12,13 @@ namespace TwitterStream
             //{
             //    TwitterStream stream = new TwitterStream(context);
 
-            //    try
-            //    {
-            //        stream.Start();
-            //    }
-            //    catch (WebException ex)
-            //    {
-            //        Console.WriteLine("***HATA ALINDI ***: " + ex.Message + "\n\n");
-
-            //        stream.InsertError(ex);
-            //    }
+           try
+                {
+                }
+                catch (WebException ex)
+                {
+                }
+           
             //}
         }
     }
