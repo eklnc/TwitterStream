@@ -14,10 +14,7 @@ namespace TwitterStream
 
                 try
                 {
-                    //stream.Start();
-
-                    // gereksiz kodlar
-                    var asasdasd = stream.ToString();
+                    stream.Start();
                 }
                 catch (WebException ex)
                 {
